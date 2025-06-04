@@ -1,6 +1,9 @@
 import cv2 #uses BGR
 import time 
 from emailing import send_email
+import glob
+import os
+from threading import Thread
 
 video = cv2.VideoCapture(0) # 0 - the number for one laptop camera
 time.sleep(1) #give the camera some time to reload - creates 1 frame/sec
@@ -9,11 +12,23 @@ first_frame = None
 
 status_list = []
 
+count = 1
+
+#function for cleaning the images folder
+
+def clean_folder():
+    print("clean_folder function started")
+    images = glob.glob("images/*.txt")
+    for image in images:
+        os.remove(image)
+    print("clean_folder function ended")
 
 while True:
     status = 0 #no object
 
     check, frame = video.read() #frame is a numpy matrix
+
+   
 
     gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) #converts the frame to gray
 
@@ -50,13 +65,36 @@ while True:
 
         if rectangle.any():
             status = 1 #when there are rectangles   
+             #store the image
+            cv2.imwrite(f"images/{count}.png", frame) 
+            count = count + 1
+            all_images = glob.glob("images/*.png")
+
+            #extracting the image from the middle of the list in the folder images
+            index = int(len(all_images) / 2)
+            image_with_object = all_images[index]
+
             
 
     status_list.append(status) #appends the old and new statuses (status=1 is when an object entered the frame)
     status_list = status_list[-2:] #only the last items of the list
 
     if status_list[0] == 1 and status_list[1] == 0:
-        send_email()
+        #create thread 
+        email_thread = Thread(target=send_email, args=(image_with_object, )) #args is a tuple, the comma is important if you dont have 2 arguments in the function
+        email_thread.daemon = True #allows the function to be executed in tha background
+
+        #call the email function
+        #send_email(image_with_object)
+
+        clean_folder_thread = Thread(target=clean_folder)
+        clean_folder_thread.daemon = True
+        #call the function
+        #clean_folder()
+
+        #call the thread
+        email_thread.start()
+       
     
 
     cv2.imshow("Video", frame)
@@ -68,5 +106,8 @@ while True:
         break
 
 video.release()
+
+#call the thread
+clean_folder_thread.start()
 
 
